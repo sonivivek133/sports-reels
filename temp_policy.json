@@ -1,0 +1,13 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iam:ListAttachedUserPolicies",
+                "iam:AttachUserPolicy"
+            ],
+            "Resource": "arn:aws:iam::312146390626:user/sports-reels-user"
+        }
+    ]
+}
