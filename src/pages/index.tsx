@@ -536,9 +536,8 @@ export default function Home() {
 
         {/* Reels Section with Error Boundary */}
         <ErrorBoundary
-          FallbackComponent={ApiErrorFallback}
-          onReset={() => setReels([])}
-        >
+  fallback={<ApiErrorFallback error={new Error('Failed to load reels')} resetErrorBoundary={() => setReels([])} />}
+/>
           {reels.length > 0 ? (
             <Reel
               reels={reels}
