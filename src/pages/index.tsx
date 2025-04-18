@@ -535,39 +535,38 @@ export default function Home() {
         </div>
 
         {/* Reels Section with Error Boundary */}
-        <ErrorBoundary
-  fallback={<ApiErrorFallback error={new Error('Failed to load reels')} resetErrorBoundary={() => setReels([])} />}
-/>
-          {reels.length > 0 ? (
-            <Reel
-              reels={reels}
-              likedReels={likedReels}
-              toggleLike={toggleLike}
-              isMuted={isMuted}
-              setIsMuted={setIsMuted}
-            />
-          ) : (
-            <div
-              style={{
-                textAlign: 'center',
-                marginTop: '40px',
-                color: '#6b7280',
-                padding: '40px 20px',
-                border: '1px dashed #d1d5db',
-                borderRadius: '12px',
-                background: 'rgba(255,255,255,0.7)',
-                boxShadow: '0 2px 8px rgba(30,64,175,0.04)',
-              }}
-            >
-              <p style={{ fontSize: '20px', marginBottom: '16px', fontWeight: 600 }}>
-                No reels available yet
-              </p>
-              <p style={{ fontSize: '15px', opacity: 0.8 }}>
-                Enter a celebrity name and click "Create Reel" to get started
-              </p>
-            </div>
-          )}
-        </ErrorBoundary>
+<ErrorBoundary
+          fallback={<ApiErrorFallback error={new Error('Failed to load reels')} resetErrorBoundary={() => setReels([])} />} children={undefined}>
+  {reels.length > 0 ? (
+    <Reel
+      reels={reels}
+      likedReels={likedReels}
+      toggleLike={toggleLike}
+      isMuted={isMuted}
+      setIsMuted={setIsMuted}
+    />
+  ) : (
+    <div
+      style={{
+        textAlign: 'center',
+        marginTop: '40px',
+        color: '#6b7280',
+        padding: '40px 20px',
+        border: '1px dashed #d1d5db',
+        borderRadius: '12px',
+        background: 'rgba(255,255,255,0.7)',
+        boxShadow: '0 2px 8px rgba(30,64,175,0.04)',
+      }}
+    >
+      <p style={{ fontSize: '20px', marginBottom: '16px', fontWeight: 600 }}>
+        No reels available yet
+      </p>
+      <p style={{ fontSize: '15px', opacity: 0.8 }}>
+        Enter a celebrity name and click "Create Reel" to get started
+      </p>
+    </div>
+  )}
+</ErrorBoundary>
       </main>
 
       {/* Footer */}
