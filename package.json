@@ -31,7 +31,6 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@next/swc-win32-x64-msvc": "^15.2.4",
     "@tailwindcss/postcss": "^4",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/node": "^20",
