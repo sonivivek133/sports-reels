@@ -245,7 +245,6 @@
 //     </div>
 //   );
 // }
-
 import { useState } from 'react';
 import Reel from './components/Reel';
 import axios from 'axios';
@@ -259,39 +258,6 @@ interface ReelItem {
   likes: number;
   shares: number;
   comments: number;
-}
-
-function ApiErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
-  return (
-    <div style={{
-      padding: '20px',
-      border: '1px solid #ff6b6b',
-      borderRadius: '4px',
-      backgroundColor: '#fff5f5',
-      textAlign: 'center',
-      margin: '20px 0'
-    }}>
-      <h3 style={{ color: '#ff6b6b' }}>Failed to load reels</h3>
-      <p style={{ color: '#ff6b6b', margin: '10px 0' }}>
-        {error.message.includes('Failed to generate') 
-          ? "Couldn't create a new reel. Please try again."
-          : "We're having trouble loading content."}
-      </p>
-      <button 
-        onClick={resetErrorBoundary}
-        style={{
-          padding: '8px 16px',
-          backgroundColor: '#ff6b6b',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-      >
-        Try Again
-      </button>
-    </div>
-  );
 }
 
 export default function Home() {
@@ -348,7 +314,7 @@ export default function Home() {
       );
 
     } catch (error: any) {
-      throw new Error(`Failed to generate reel: ${error.message}`);
+      alert(`Failed to generate reel: ${error.message}`);
     } finally {
       setIsLoading(false);
       setCelebrity('');
