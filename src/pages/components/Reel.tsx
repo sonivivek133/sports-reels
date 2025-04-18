@@ -1,376 +1,8 @@
+
+// import { useRef, useEffect, useState } from 'react';
+// import ErrorBoundary from './ErrorBoundary';
 // import { FiPlay, FiPause, FiVolume2, FiVolumeX, FiHeart, FiMessageCircle, FiShare2, FiMaximize } from 'react-icons/fi';
 // import { FaHeart } from 'react-icons/fa';
-// import { useRef, useState, useEffect } from 'react';
-// import ErrorBoundary from './ErrorBoundary';
-
-// interface ReelItem {
-//   id: string;
-//   title: string;
-//   videoUrl: string;
-//   description: string;
-//   celebrity: string;
-//   likes: number;
-//   shares: number;
-//   comments: number;
-// }
-
-// interface ReelProps {
-//   reels: ReelItem[];
-//   likedReels: Record<string, boolean>;
-//   toggleLike: (id: string) => void;
-//   isMuted: boolean;
-//   setIsMuted: (muted: boolean) => void;
-// }
-
-// function VideoPlayer({ reel, isMuted, setIsMuted, toggleLike, likedReels }: { reel: ReelItem, isMuted: boolean, setIsMuted: (muted: boolean) => void, toggleLike: (id: string) => void, likedReels: Record<string, boolean> }) {
-//   const videoRef = useRef<HTMLVideoElement>(null);
-//   const containerRef = useRef<HTMLDivElement>(null);
-//   const [isPlaying, setIsPlaying] = useState(false);
-//   const [isLoading, setIsLoading] = useState(false);
-//   const [progress, setProgress] = useState(0);
-//   const [showControls, setShowControls] = useState(false);
-//   const [isFullscreen, setIsFullscreen] = useState(false);
-
-//   const togglePlay = () => {
-//     if (videoRef.current) {
-//       if (isPlaying) {
-//         videoRef.current.pause();
-//       } else {
-//         videoRef.current.play().catch(error => {
-//           throw new Error(`Video playback failed: ${error.message}`);
-//         });
-//       }
-//     }
-//   };
-
-//   const toggleFullscreen = () => {
-//     if (containerRef.current) {
-//       if (!document.fullscreenElement) {
-//         containerRef.current.requestFullscreen()
-//           .then(() => setIsFullscreen(true))
-//           .catch(console.error);
-//       } else {
-//         document.exitFullscreen()
-//           .then(() => setIsFullscreen(false))
-//           .catch(console.error);
-//       }
-//     }
-//   };
-
-//   useEffect(() => {
-//     const handleKeyDown = (e: KeyboardEvent) => {
-//       if (!videoRef.current) return;
-      
-//       switch (e.code) {
-//         case 'Space':
-//           e.preventDefault();
-//           togglePlay();
-//           break;
-//         case 'KeyM':
-//           setIsMuted(!isMuted);
-//           break;
-//         case 'KeyF':
-//           toggleFullscreen();
-//           break;
-//       }
-//     };
-
-//     document.addEventListener('keydown', handleKeyDown);
-//     return () => document.removeEventListener('keydown', handleKeyDown);
-//   }, [isMuted]);
-
-//   useEffect(() => {
-//     const handleFullscreenChange = () => {
-//       setIsFullscreen(!!document.fullscreenElement);
-//     };
-
-//     document.addEventListener('fullscreenchange', handleFullscreenChange);
-//     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-//   }, []);
-
-//   return (
-//     <div 
-//       ref={containerRef}
-//       style={{ 
-//         position: 'relative', 
-//         backgroundColor: '#000', 
-//         borderRadius: '8px', 
-//         overflow: 'hidden',
-//         cursor: 'pointer'
-//       }}
-//       onMouseEnter={() => setShowControls(true)}
-//       onMouseLeave={() => setShowControls(false)}
-//     >
-//       <video
-//         ref={videoRef}
-//         src={reel.videoUrl}
-//         loop
-//         muted={isMuted}
-//         onPlay={() => setIsPlaying(true)}
-//         onPause={() => setIsPlaying(false)}
-//         onWaiting={() => setIsLoading(true)}
-//         onPlaying={() => setIsLoading(false)}
-//         onTimeUpdate={(e) => {
-//           const video = e.target as HTMLVideoElement;
-//           setProgress((video.currentTime / video.duration) * 100 || 0);
-//         }}
-//         onError={() => {
-//           throw new Error('Failed to load video');
-//         }}
-//         style={{ 
-//           width: '100%', 
-//           height: '400px', 
-//           objectFit: 'cover',
-//           display: 'block'
-//         }}
-//         onClick={togglePlay}
-//       />
-
-//       {isLoading && (
-//         <div style={{
-//           position: 'absolute',
-//           top: 0,
-//           left: 0,
-//           right: 0,
-//           bottom: 0,
-//           display: 'flex',
-//           alignItems: 'center',
-//           justifyContent: 'center',
-//           backgroundColor: 'rgba(0,0,0,0.5)',
-//           zIndex: 10
-//         }}>
-//           <div style={{
-//             width: '40px',
-//             height: '40px',
-//             border: '4px solid rgba(255,255,255,0.3)',
-//             borderRadius: '50%',
-//             borderTopColor: '#fff',
-//             animation: 'spin 1s ease-in-out infinite'
-//           }} />
-//         </div>
-//       )}
-
-//       <div 
-//         style={{
-//           position: 'absolute',
-//           bottom: '60px',
-//           left: 0,
-//           right: 0,
-//           height: '4px',
-//           backgroundColor: 'rgba(255,255,255,0.2)',
-//           zIndex: 5
-//         }}
-//         onClick={(e) => {
-//           if (videoRef.current) {
-//             const rect = e.currentTarget.getBoundingClientRect();
-//             const pos = (e.clientX - rect.left) / rect.width;
-//             videoRef.current.currentTime = pos * videoRef.current.duration;
-//           }
-//         }}
-//       >
-//         <div 
-//           style={{
-//             width: `${progress}%`,
-//             height: '100%',
-//             backgroundColor: '#3b82f6'
-//           }} 
-//         />
-//       </div>
-
-//       {(showControls || !isPlaying) && (
-//         <div style={{
-//           position: 'absolute',
-//           bottom: 0,
-//           left: 0,
-//           right: 0,
-//           padding: '12px',
-//           background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
-//           display: 'flex',
-//           alignItems: 'center',
-//           zIndex: 5,
-//           transition: 'opacity 0.3s ease',
-//           opacity: showControls ? 1 : 0.7
-//         }}>
-//           <button 
-//             onClick={togglePlay}
-//             style={{
-//               background: 'none',
-//               border: 'none',
-//               color: 'white',
-//               fontSize: '24px',
-//               cursor: 'pointer',
-//               padding: '8px'
-//             }}
-//           >
-//             {isPlaying ? <FiPause /> : <FiPlay />}
-//           </button>
-
-//           <div style={{ flex: 1, margin: '0 12px' }}>
-//             <div style={{ color: 'white', fontWeight: 'bold', fontSize: '14px' }}>{reel.celebrity}</div>
-//             <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '12px' }}>
-//               {reel.title}
-//             </div>
-//           </div>
-
-//           <button 
-//             onClick={() => setIsMuted(!isMuted)}
-//             style={{
-//               background: 'none',
-//               border: 'none',
-//               color: 'white',
-//               fontSize: '20px',
-//               cursor: 'pointer',
-//               marginRight: '12px',
-//               padding: '8px'
-//             }}
-//           >
-//             {isMuted ? <FiVolumeX /> : <FiVolume2 />}
-//           </button>
-
-//           <button 
-//             onClick={toggleFullscreen}
-//             style={{
-//               background: 'none',
-//               border: 'none',
-//               color: 'white',
-//               fontSize: '20px',
-//               cursor: 'pointer',
-//               padding: '8px'
-//             }}
-//           >
-//             <FiMaximize />
-//           </button>
-//         </div>
-//       )}
-
-//       <div style={{ 
-//         position: 'absolute',
-//         top: '16px',
-//         right: '16px',
-//         display: 'flex',
-//         flexDirection: 'column',
-//         gap: '16px',
-//         zIndex: 5,
-//         transition: 'opacity 0.3s ease',
-//         opacity: showControls ? 1 : 0.7
-//       }}>
-//         <button 
-//           onClick={() => toggleLike(reel.id)}
-//           style={{ 
-//             display: 'flex',
-//             flexDirection: 'column',
-//             alignItems: 'center',
-//             background: 'none',
-//             border: 'none',
-//             color: likedReels[reel.id] ? '#ef4444' : 'white',
-//             cursor: 'pointer'
-//           }}
-//         >
-//           {likedReels[reel.id] ? <FaHeart size={24} /> : <FiHeart size={24} />}
-//           <span style={{ fontSize: '12px', marginTop: '4px' }}>
-//             {reel.likes + (likedReels[reel.id] ? 1 : 0)}
-//           </span>
-//         </button>
-
-//         <button style={{ 
-//           display: 'flex',
-//           flexDirection: 'column',
-//           alignItems: 'center',
-//           background: 'none',
-//           border: 'none',
-//           color: 'white',
-//           cursor: 'pointer'
-//         }}>
-//           <FiMessageCircle size={24} />
-//           <span style={{ fontSize: '12px', marginTop: '4px' }}>{reel.comments}</span>
-//         </button>
-
-//         <button style={{ 
-//           display: 'flex',
-//           flexDirection: 'column',
-//           alignItems: 'center',
-//           background: 'none',
-//           border: 'none',
-//           color: 'white',
-//           cursor: 'pointer'
-//         }}>
-//           <FiShare2 size={24} />
-//           <span style={{ fontSize: '12px', marginTop: '4px' }}>{reel.shares}</span>
-//         </button>
-//       </div>
-//     </div>
-//   );
-// }
-
-// function VideoErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
-//   return (
-//     <div style={{
-//       width: '100%',
-//       height: '400px',
-//       display: 'flex',
-//       flexDirection: 'column',
-//       alignItems: 'center',
-//       justifyContent: 'center',
-//       backgroundColor: '#f8f9fa',
-//       borderRadius: '8px',
-//       padding: '20px',
-//       textAlign: 'center'
-//     }}>
-//       <h3 style={{ color: '#dc3545' }}>⚠️ Video Error</h3>
-//       <p style={{ margin: '10px 0', color: '#6c757d' }}>
-//         {error.message || 'Failed to load video'}
-//       </p>
-//       <button
-//         onClick={resetErrorBoundary}
-//         style={{
-//           padding: '8px 16px',
-//           backgroundColor: '#dc3545',
-//           color: 'white',
-//           border: 'none',
-//           borderRadius: '4px',
-//           cursor: 'pointer'
-//         }}
-//       >
-//         Retry
-//       </button>
-//     </div>
-//   );
-// }
-
-// export default function Reel({ reels, likedReels, toggleLike, isMuted, setIsMuted }: ReelProps) {
-//   return (
-//     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-//       {reels.map((reel) => (
-//         <ErrorBoundary
-//           key={reel.id}
-//           fallback={
-//             <VideoErrorFallback error={new Error('An error occurred')} resetErrorBoundary={() => {}} />
-//           }
-          
-//         >
-//           <VideoPlayer 
-//             reel={reel}
-//             isMuted={isMuted}
-//             setIsMuted={setIsMuted}
-//             toggleLike={toggleLike}
-//             likedReels={likedReels}
-//           />
-//         </ErrorBoundary>
-//       ))}
-//     </div>
-//   );
-// }
-
-
-
-
-
-
-
-// import { FiPlay, FiPause, FiVolume2, FiVolumeX, FiHeart, FiMessageCircle, FiShare2, FiMaximize } from 'react-icons/fi';
-// import { FaHeart } from 'react-icons/fa';
-// import { useRef, useState, useEffect } from 'react';
-// import ErrorBoundary from './ErrorBoundary';
 
 // interface ReelItem {
 //   id: string;
@@ -777,114 +409,72 @@
 //   );
 // }
 
-// function VideoErrorFallback({ error, resetErrorBoundary }: { error: Error, resetErrorBoundary: () => void }) {
-//   return (
-//     <div style={{
-//       width: '100%',
-//       height: '400px',
-//       display: 'flex',
-//       flexDirection: 'column',
-//       alignItems: 'center',
-//       justifyContent: 'center',
-//       backgroundColor: '#f8f9fa',
-//       borderRadius: '8px',
-//       padding: '20px',
-//       textAlign: 'center'
-//     }}>
-//       <h3 style={{ color: '#dc3545' }}>⚠️ Video Error</h3>
-//       <p style={{ margin: '10px 0', color: '#6c757d' }}>
-//         {error.message || 'Failed to load video'}
-//       </p>
-//       <button
-//         onClick={resetErrorBoundary}
-//         style={{
-//           padding: '8px 16px',
-//           backgroundColor: '#dc3545',
-//           color: 'white',
-//           border: 'none',
-//           borderRadius: '4px',
-//           cursor: 'pointer'
-//         }}
-//       >
-//         Retry
-//       </button>
-//     </div>
-//   );
-// }
-
 // export default function Reel({ reels, likedReels, toggleLike, isMuted, setIsMuted }: ReelProps) {
-//   const [current, setCurrent] = useState(0);
+//   const containerRef = useRef<HTMLDivElement>(null);
+//   const [activeIdx, setActiveIdx] = useState(0);
 
-//   // When a video ends, move to the next one (loop)
-//   const handleEnded = () => {
-//     setCurrent((prev) => (prev + 1) % reels.length);
-//   };
-
-//   // Keyboard navigation (optional)
+//   // Intersection Observer to detect which reel is in view
 //   useEffect(() => {
-//     const handleArrow = (e: KeyboardEvent) => {
-//       if (e.code === 'ArrowDown') {
-//         setCurrent((prev) => (prev + 1) % reels.length);
-//       } else if (e.code === 'ArrowUp') {
-//         setCurrent((prev) => (prev - 1 + reels.length) % reels.length);
-//       }
-//     };
-//     window.addEventListener('keydown', handleArrow);
-//     return () => window.removeEventListener('keydown', handleArrow);
+//     const nodes = containerRef.current?.querySelectorAll('.reel-item');
+//     if (!nodes) return;
+//     const observer = new window.IntersectionObserver(
+//       (entries) => {
+//         entries.forEach(entry => {
+//           if (entry.isIntersecting && entry.intersectionRatio > 0.85) {
+//             const idx = Number((entry.target as HTMLElement).dataset.idx);
+//             setActiveIdx(idx);
+//           }
+//         });
+//       },
+//       { threshold: [0.85] }
+//     );
+//     nodes.forEach(node => observer.observe(node));
+//     return () => observer.disconnect();
 //   }, [reels.length]);
 
 //   return (
-//     <div style={{
-//       display: 'flex',
-//       flexDirection: 'column',
-//       gap: '32px',
-//       alignItems: 'center',
-//       padding: '40px 0',
-//       background: 'linear-gradient(135deg, #181818 0%, #232526 100%)',
-//       minHeight: '100vh',
-//       position: 'relative'
-//     }}>
+//     <div
+//       ref={containerRef}
+//       style={{
+//         height: '100vh',
+//         overflowY: 'scroll',
+//         scrollSnapType: 'y mandatory',
+//         background: 'linear-gradient(135deg, #181818 0%, #232526 100%)',
+//       }}
+//     >
 //       {reels.map((reel, idx) => (
-//         <ErrorBoundary
+//         <div
 //           key={reel.id}
-//           fallback={
-//             <VideoErrorFallback error={new Error('An error occurred')} resetErrorBoundary={() => { }} />
-//           }
+//           className="reel-item"
+//           data-idx={idx}
+//           style={{
+//             height: '100vh',
+//             scrollSnapAlign: 'start',
+//             display: 'flex',
+//             alignItems: 'center',
+//             justifyContent: 'center',
+//           }}
 //         >
-//           <VideoPlayer
-//             reel={reel}
-//             isMuted={isMuted}
-//             setIsMuted={setIsMuted}
-//             toggleLike={toggleLike}
-//             likedReels={likedReels}
-//             isActive={idx === current}
-//             onEnded={handleEnded}
-//           />
-//         </ErrorBoundary>
+//           <ErrorBoundary
+//             fallback={<div style={{ color: 'red' }}>Video Error</div>}
+//           >
+//             <VideoPlayer
+//               reel={reel}
+//               isMuted={isMuted}
+//               setIsMuted={setIsMuted}
+//               toggleLike={toggleLike}
+//               likedReels={likedReels}
+//               isActive={idx === activeIdx}
+//               onEnded={() => {
+//                 if (idx < reels.length - 1) setActiveIdx(idx + 1);
+//               }}
+//             />
+//           </ErrorBoundary>
+//         </div>
 //       ))}
-//       {/* Optional: show reel progress indicator */}
-//       <div style={{
-//         position: 'absolute',
-//         bottom: 24,
-//         left: '50%',
-//         transform: 'translateX(-50%)',
-//         color: '#fff',
-//         fontWeight: 600,
-//         fontSize: 18,
-//         letterSpacing: 1,
-//         opacity: 0.8
-//       }}>
-//         Reel {current + 1} / {reels.length}
-//       </div>
 //     </div>
 //   );
 // }
-
-
-
-
-
-
 
 
 import { useRef, useEffect, useState } from 'react';
