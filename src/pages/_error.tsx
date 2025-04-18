@@ -1,4 +1,4 @@
-import ErrorBoundary from '../components/ErrorBoundary';
+
 import React from 'react';
 
 function ErrorPage({ statusCode }: { statusCode: number }) {
