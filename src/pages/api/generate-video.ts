@@ -867,7 +867,6 @@
 
 
 
-
 import { NextApiRequest, NextApiResponse } from 'next';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import ffmpeg from 'fluent-ffmpeg';
@@ -1020,8 +1019,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     }
 
     const sanitizedName = celebrity.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const tempDir = path.join(process.cwd(), 'tmp');
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    const tempDir = '/tmp'; // Use /tmp for Vercel compatibility
     const timestamp = Date.now();
 
     // Download enough images for all reels
