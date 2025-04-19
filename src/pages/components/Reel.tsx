@@ -476,9 +476,7 @@
 //   );
 // }
 
-
 import { useRef, useEffect, useState } from 'react';
-import ErrorBoundary from './ErrorBoundary';
 import { FiPlay, FiPause, FiVolume2, FiVolumeX, FiHeart, FiMessageCircle, FiShare2, FiMaximize } from 'react-icons/fi';
 import { FaHeart } from 'react-icons/fa';
 
@@ -532,9 +530,7 @@ function VideoPlayer({
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        videoRef.current.play().catch(error => {
-          throw new Error(`Video playback failed: ${error.message}`);
-        });
+        videoRef.current.play().catch(() => {});
       }
     }
   };
@@ -544,11 +540,11 @@ function VideoPlayer({
       if (!document.fullscreenElement) {
         containerRef.current.requestFullscreen()
           .then(() => setIsFullscreen(true))
-          .catch(console.error);
+          .catch(() => {});
       } else {
         document.exitFullscreen()
           .then(() => setIsFullscreen(false))
-          .catch(console.error);
+          .catch(() => {});
       }
     }
   };
@@ -581,7 +577,6 @@ function VideoPlayer({
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  // Like animation
   useEffect(() => {
     if (likeAnim) {
       const t = setTimeout(() => setLikeAnim(false), 500);
@@ -589,7 +584,6 @@ function VideoPlayer({
     }
   }, [likeAnim]);
 
-  // Auto play/pause based on isActive
   useEffect(() => {
     if (videoRef.current) {
       if (isActive) {
@@ -601,7 +595,6 @@ function VideoPlayer({
     }
   }, [isActive]);
 
-  // Unmute for active video
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.muted = isMuted ? true : false;
@@ -646,9 +639,6 @@ function VideoPlayer({
           setProgress((video.currentTime / video.duration) * 100 || 0);
         }}
         onEnded={onEnded}
-        onError={() => {
-          throw new Error('Failed to load video');
-        }}
         style={{
           width: '100%',
           height: '100%',
@@ -891,7 +881,6 @@ export default function Reel({ reels, likedReels, toggleLike, isMuted, setIsMute
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
 
-  // Intersection Observer to detect which reel is in view
   useEffect(() => {
     const nodes = containerRef.current?.querySelectorAll('.reel-item');
     if (!nodes) return;
@@ -933,21 +922,17 @@ export default function Reel({ reels, likedReels, toggleLike, isMuted, setIsMute
             justifyContent: 'center',
           }}
         >
-          <ErrorBoundary
-            fallback={<div style={{ color: 'red' }}>Video Error</div>}
-          >
-            <VideoPlayer
-              reel={reel}
-              isMuted={isMuted}
-              setIsMuted={setIsMuted}
-              toggleLike={toggleLike}
-              likedReels={likedReels}
-              isActive={idx === activeIdx}
-              onEnded={() => {
-                if (idx < reels.length - 1) setActiveIdx(idx + 1);
-              }}
-            />
-          </ErrorBoundary>
+          <VideoPlayer
+            reel={reel}
+            isMuted={isMuted}
+            setIsMuted={setIsMuted}
+            toggleLike={toggleLike}
+            likedReels={likedReels}
+            isActive={idx === activeIdx}
+            onEnded={() => {
+              if (idx < reels.length - 1) setActiveIdx(idx + 1);
+            }}
+          />
         </div>
       ))}
     </div>
