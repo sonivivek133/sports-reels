@@ -246,7 +246,7 @@
 //   );
 // }
 import { useState } from 'react';
-import Reel from './components/Reel';
+import Reel from '../components/Reel';
 import axios from 'axios';
 
 interface ReelItem {
