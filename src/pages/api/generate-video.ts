@@ -867,7 +867,8 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
+import * as ffmpegWasm from '@ffmpeg/ffmpeg';
+const { createFFmpeg, fetchFile } = ffmpegWasm;
 import axios from 'axios';
 import { withErrorHandler } from './errorHandler';
 
