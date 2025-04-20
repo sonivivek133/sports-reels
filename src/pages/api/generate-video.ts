@@ -36,7 +36,7 @@ export const config = {
 };
 
 const IMAGE_COUNT = 2; // Images per reel
-// const REEL_COUNT = 2;  // Number of reels to generate
+const REEL_COUNT = 1;  // Number of reels to generate
 const IMAGE_DURATION = 1; // seconds per image
 
 async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]> {
