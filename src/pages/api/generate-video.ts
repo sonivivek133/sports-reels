@@ -327,7 +327,7 @@ export const config = {
 // ======================
 
 const IMAGE_COUNT = 2;       // Images per reel
-const REEL_COUNT = 2;        // Number of reels to generate
+const REEL_COUNT = 1;        // Number of reels to generate
 const IMAGE_DURATION = 1;    // Seconds per image
 const VIDEO_WIDTH = 720;     // Output width
 const VIDEO_HEIGHT = 1280;   // Output height (vertical format)
