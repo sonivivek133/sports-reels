@@ -1,16 +1,280 @@
+// import { NextApiRequest, NextApiResponse } from 'next';
+// import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+// import ffmpeg from 'fluent-ffmpeg';
+// import fs from 'fs';
+// import path from 'path';
+// import axios from 'axios';
+// import { promisify } from 'util';
+// import { withErrorHandler } from './errorHandler';
+
+// const writeFile = promisify(fs.writeFile);
+// const readFile = promisify(fs.readFile);
+// const unlink = promisify(fs.unlink);
+
+// const s3 = new S3Client({
+//   region: process.env.AWS_REGION,
+//   credentials: {
+//     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+//     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+//   },
+// });
+
+// const bucketEndpoint = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com`;
+
+// const NBA_PLAYER_IDS: Record<string, number> = {
+//   'LeBron James': 2544,
+//   'Stephen Curry': 201939,
+//   'Kevin Durant': 201142,
+// };
+
+// export const config = {
+//   api: {
+//     bodyParser: {
+//       sizeLimit: '25mb',
+//     },
+//   },
+// };
+
+// const IMAGE_COUNT = 2; // Images per reel
+// const REEL_COUNT = 1;  // Number of reels to generate
+// const IMAGE_DURATION = 1; // seconds per image
+
+// async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]> {
+//   const images: Buffer[] = [];
+//   const IMAGE_TOTAL = IMAGE_COUNT * REEL_COUNT;
+
+//   // NBA CDN
+//   if (NBA_PLAYER_IDS[celebrity]) {
+//     try {
+//       const nbaUrl = `https://cdn.nba.com/headshots/nba/latest/1040x760/${NBA_PLAYER_IDS[celebrity]}.png`;
+//       const nbaImg = await axios.get(nbaUrl, { responseType: 'arraybuffer' });
+//       images.push(Buffer.from(nbaImg.data, 'binary'));
+//     } catch {}
+//   }
+
+//   // Wikimedia Commons
+//   try {
+//     const wikiApi = `https://en.wikipedia.org/w/api.php?action=query&generator=images&titles=${encodeURIComponent(celebrity)}&gimlimit=10&prop=imageinfo&iiprop=url&format=json`;
+//     const wikiResp = await axios.get(wikiApi);
+//     const pages = wikiResp.data?.query?.pages || {};
+//     for (const page of Object.values(pages)) {
+//       const url = (page as { imageinfo?: { url?: string }[] }).imageinfo?.[0]?.url;
+//       if (url && /\.(jpg|jpeg|png)$/i.test(url)) {
+//         try {
+//           const imgResp = await axios.get(url, { responseType: 'arraybuffer' });
+//           images.push(Buffer.from(imgResp.data, 'binary'));
+//           if (images.length >= IMAGE_TOTAL) break;
+//         } catch {}
+//       }
+//     }
+//   } catch {}
+
+//   // Pexels API
+//   if (process.env.PEXELS_API_KEY) {
+//     try {
+//       const pexelsUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(celebrity)}&per_page=${IMAGE_TOTAL}`;
+//       const pexelsResp = await axios.get(pexelsUrl, {
+//         headers: { Authorization: process.env.PEXELS_API_KEY },
+//         responseType: 'json',
+//       });
+//       if (pexelsResp.data.photos?.length > 0) {
+//         for (const photo of pexelsResp.data.photos) {
+//           const imageUrl = photo.src.large2x;
+//           try {
+//             const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+//             images.push(Buffer.from(imgResp.data, 'binary'));
+//             if (images.length >= IMAGE_TOTAL) break;
+//           } catch {}
+//         }
+//       }
+//     } catch {}
+//   }
+
+//   // Unsplash fallback
+//   const fallbackUrls = [
+//     'https://images.unsplash.com/photo-1546519638-68e109498ffc?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=1400&q=80',
+//     'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+//     'https://images.unsplash.com/photo-1464983953574-0892a716854b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+//     'https://images.unsplash.com/photo-1505843273132-bc5a993635c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+//     'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+//   ];
+//   let i = 0;
+//   while (images.length < IMAGE_TOTAL) {
+//     try {
+//       const url = fallbackUrls[i % fallbackUrls.length];
+//       const imgResp = await axios.get(url, { responseType: 'arraybuffer' });
+//       images.push(Buffer.from(imgResp.data, 'binary'));
+//     } catch {}
+//     i++;
+//   }
+
+//   return images.slice(0, IMAGE_TOTAL);
+// }
+
+// async function handler(req: NextApiRequest, res: NextApiResponse) {
+//   if (req.method !== 'POST') {
+//     return res.status(405).json({ error: 'Method not allowed' });
+//   }
+
+//   const tempFiles: string[] = [];
+//   try {
+//     const { audioBuffer, celebrity, script } = req.body;
+//     if (!audioBuffer || !celebrity || !script) {
+//       return res.status(400).json({ error: 'Invalid input' });
+//     }
+
+//     // Convert audio data to Buffer
+//     let audioData: Buffer;
+//     if (typeof audioBuffer === 'string' && audioBuffer.startsWith('data:')) {
+//       const base64Data = audioBuffer.split('base64,')[1];
+//       if (!base64Data) return res.status(400).json({ error: 'Invalid Base64 audioBuffer format' });
+//       audioData = Buffer.from(base64Data, 'base64');
+//     } else if (Array.isArray(audioBuffer)) {
+//       try {
+//         audioData = Buffer.from(new Uint8Array(audioBuffer));
+//       } catch (error) {
+//         return res.status(400).json({ error: 'Invalid ArrayBuffer format' });
+//       }
+//     } else {
+//       return res.status(400).json({ error: 'Invalid audio format: must be Base64 or ArrayBuffer' });
+//     }
+
+//     const sanitizedName = celebrity.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+//     const tempDir = path.join(process.cwd(), 'tmp');
+//     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+//     const timestamp = Date.now();
+
+//     // Download enough images for all reels
+//     const allImages = await downloadImagesWithFallbacks(celebrity);
+
+//     const reels: any[] = [];
+//     for (let reelIdx = 0; reelIdx < REEL_COUNT; reelIdx++) {
+//       // Pick a different slice of images for each reel
+//       const images = allImages.slice(reelIdx * IMAGE_COUNT, (reelIdx + 1) * IMAGE_COUNT);
+//       while (images.length < IMAGE_COUNT) images.push(images[images.length - 1]);
+
+//       // Save images
+//       const imagePaths: string[] = [];
+//       for (let i = 0; i < images.length; i++) {
+//         const imgPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-img${i}-${timestamp}.jpg`);
+//         await writeFile(imgPath, images[i]);
+//         imagePaths.push(imgPath);
+//         tempFiles.push(imgPath);
+//       }
+
+//       // Save audio file
+//       const audioPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-audio-${timestamp}.mp3`);
+//       await writeFile(audioPath, audioData);
+//       tempFiles.push(audioPath);
+
+//       // Prepare ffmpeg input file list for slideshow
+//       const ffmpegListPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-ffmpeg-list-${timestamp}.txt`);
+//       const ffmpegListContent = imagePaths.map(img => `file '${img.replace(/\\/g, '/')}'\nduration ${IMAGE_DURATION}`).join('\n');
+//       await writeFile(ffmpegListPath, ffmpegListContent + `\nfile '${imagePaths[imagePaths.length - 1].replace(/\\/g, '/')}'\n`);
+//       tempFiles.push(ffmpegListPath);
+
+//       // Output video path
+//       const videoPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-video-${timestamp}.mp4`);
+//       tempFiles.push(videoPath);
+
+//       // Generate slideshow video from images
+//       await new Promise((resolve, reject) => {
+//         ffmpeg()
+//           .input(ffmpegListPath)
+//           .inputOptions(['-f concat', '-safe 0'])
+//           .outputOptions([
+//             '-vf scale=720:1280,format=yuv420p',
+//             '-pix_fmt yuv420p',
+//             '-r 30'
+//           ])
+//           .outputOptions('-y')
+//           .output(videoPath)
+//           .on('end', resolve)
+//           .on('error', reject)
+//           .run();
+//       });
+
+//       // Merge audio with slideshow video
+//       const finalVideoPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-final-${timestamp}.mp4`);
+//       tempFiles.push(finalVideoPath);
+
+//       await new Promise((resolve, reject) => {
+//         ffmpeg()
+//           .input(videoPath)
+//           .input(audioPath)
+//           .outputOptions([
+//             '-c:v copy',
+//             '-c:a aac',
+//             '-shortest',
+//             '-movflags faststart'
+//           ])
+//           .output(finalVideoPath)
+//           .on('end', resolve)
+//           .on('error', reject)
+//           .run();
+//       });
+
+//       // Upload to S3
+//       const videoData = await readFile(finalVideoPath);
+//       const videoKey = `reels/${sanitizedName}-reel${reelIdx}-${timestamp}.mp4`;
+
+//       await s3.send(
+//         new PutObjectCommand({
+//           Bucket: process.env.AWS_S3_BUCKET!,
+//           Key: videoKey,
+//           Body: videoData,
+//           ContentType: 'video/mp4',
+//         })
+//       );
+
+//       reels.push({
+//         id: `${sanitizedName}-reel${reelIdx}-${timestamp}`,
+//         videoUrl: `${bucketEndpoint}/${videoKey}`,
+//         celebrity,
+//         script,
+//         title: `${celebrity}'s Career Highlights`,
+//         description: `${script.substring(0, 97)}${script.length > 97 ? '...' : ''}`,
+//       });
+//     }
+
+//     return res.status(200).json({ success: true, reels });
+//   } catch (error) {
+//     console.error('Video generation error:', error);
+//     return res.status(500).json({
+//       error: 'Video generation failed',
+//       details: error instanceof Error ? error.message : 'Unknown error',
+//     });
+//   } finally {
+//     // Cleanup temporary files
+//     try {
+//       await Promise.all(
+//         tempFiles
+//           .filter((filePath) => filePath && fs.existsSync(filePath))
+//           .map((filePath) => unlink(filePath).catch((e) => console.error(`Error deleting ${filePath}:`, e)))
+//       );
+//     } catch (cleanupError) {
+//       console.error('Error during cleanup:', cleanupError);
+//     }
+//   }
+// }
+
+// export default withErrorHandler(handler);
+
+
+
+
+
+
+
+
 import { NextApiRequest, NextApiResponse } from 'next';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import ffmpeg from 'fluent-ffmpeg';
-import fs from 'fs';
-import path from 'path';
+import { join } from 'path';
+import { mkdirSync, existsSync, unlinkSync, writeFileSync, readFileSync } from 'fs';
 import axios from 'axios';
-import { promisify } from 'util';
-import { withErrorHandler } from './errorHandler';
 
-const writeFile = promisify(fs.writeFile);
-const readFile = promisify(fs.readFile);
-const unlink = promisify(fs.unlink);
-
+// Initialize S3 client with AWS credentials from environment variables
 const s3 = new S3Client({
   region: process.env.AWS_REGION,
   credentials: {
@@ -19,14 +283,17 @@ const s3 = new S3Client({
   },
 });
 
+// Construct S3 bucket endpoint URL
 const bucketEndpoint = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com`;
 
+// Mapping of NBA players to their IDs for image fetching
 const NBA_PLAYER_IDS: Record<string, number> = {
   'LeBron James': 2544,
   'Stephen Curry': 201939,
   'Kevin Durant': 201142,
 };
 
+// Configure API route to handle large payloads (up to 25MB)
 export const config = {
   api: {
     bodyParser: {
@@ -35,28 +302,50 @@ export const config = {
   },
 };
 
-const IMAGE_COUNT = 2; // Images per reel
+// Video generation constants
+const IMAGE_COUNT = 2; // Number of images per reel
 const REEL_COUNT = 1;  // Number of reels to generate
-const IMAGE_DURATION = 1; // seconds per image
+const IMAGE_DURATION = 1; // Duration (in seconds) each image is shown
 
+/**
+ * Helper function to get paths in Vercel's writable /tmp directory
+ * @param filename - Name of the temporary file
+ * @returns Full path to temporary file
+ */
+const getTempPath = (filename: string): string => {
+  const tmpDir = join('/tmp', 'reel-generator');
+  if (!existsSync(tmpDir)) {
+    mkdirSync(tmpDir, { recursive: true });
+  }
+  return join(tmpDir, filename);
+};
+
+/**
+ * Fetches images of a celebrity from multiple sources with fallbacks
+ * @param celebrity - Name of the celebrity to fetch images for
+ * @returns Array of image buffers
+ */
 async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]> {
   const images: Buffer[] = [];
   const IMAGE_TOTAL = IMAGE_COUNT * REEL_COUNT;
 
-  // NBA CDN
+  // Try NBA CDN first if celebrity is a known player
   if (NBA_PLAYER_IDS[celebrity]) {
     try {
       const nbaUrl = `https://cdn.nba.com/headshots/nba/latest/1040x760/${NBA_PLAYER_IDS[celebrity]}.png`;
       const nbaImg = await axios.get(nbaUrl, { responseType: 'arraybuffer' });
       images.push(Buffer.from(nbaImg.data, 'binary'));
-    } catch {}
+    } catch (error) {
+      console.log(`NBA image fetch failed for ${celebrity}`);
+    }
   }
 
-  // Wikimedia Commons
+  // Try Wikimedia Commons API
   try {
     const wikiApi = `https://en.wikipedia.org/w/api.php?action=query&generator=images&titles=${encodeURIComponent(celebrity)}&gimlimit=10&prop=imageinfo&iiprop=url&format=json`;
     const wikiResp = await axios.get(wikiApi);
     const pages = wikiResp.data?.query?.pages || {};
+    
     for (const page of Object.values(pages)) {
       const url = (page as { imageinfo?: { url?: string }[] }).imageinfo?.[0]?.url;
       if (url && /\.(jpg|jpeg|png)$/i.test(url)) {
@@ -64,12 +353,16 @@ async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]>
           const imgResp = await axios.get(url, { responseType: 'arraybuffer' });
           images.push(Buffer.from(imgResp.data, 'binary'));
           if (images.length >= IMAGE_TOTAL) break;
-        } catch {}
+        } catch (error) {
+          console.log(`Wikimedia image fetch failed for ${url}`);
+        }
       }
     }
-  } catch {}
+  } catch (error) {
+    console.log(`Wikimedia API failed for ${celebrity}`);
+  }
 
-  // Pexels API
+  // Try Pexels API if key is available
   if (process.env.PEXELS_API_KEY) {
     try {
       const pexelsUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(celebrity)}&per_page=${IMAGE_TOTAL}`;
@@ -77,6 +370,7 @@ async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]>
         headers: { Authorization: process.env.PEXELS_API_KEY },
         responseType: 'json',
       });
+      
       if (pexelsResp.data.photos?.length > 0) {
         for (const photo of pexelsResp.data.photos) {
           const imageUrl = photo.src.large2x;
@@ -84,41 +378,55 @@ async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]>
             const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
             images.push(Buffer.from(imgResp.data, 'binary'));
             if (images.length >= IMAGE_TOTAL) break;
-          } catch {}
+          } catch (error) {
+            console.log(`Pexels image fetch failed for ${imageUrl}`);
+          }
         }
       }
-    } catch {}
+    } catch (error) {
+      console.log(`Pexels API failed for ${celebrity}`);
+    }
   }
 
-  // Unsplash fallback
+  // Fallback to Unsplash images if we don't have enough
   const fallbackUrls = [
     'https://images.unsplash.com/photo-1546519638-68e109498ffc?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=1400&q=80',
     'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
     'https://images.unsplash.com/photo-1464983953574-0892a716854b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1505843273132-bc5a993635c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+    'https://images.unsplash.com/photo-1505843273132-bc5a993635c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
   ];
-  let i = 0;
+
+  // Fill remaining slots with fallback images
   while (images.length < IMAGE_TOTAL) {
     try {
-      const url = fallbackUrls[i % fallbackUrls.length];
+      const url = fallbackUrls[images.length % fallbackUrls.length];
       const imgResp = await axios.get(url, { responseType: 'arraybuffer' });
       images.push(Buffer.from(imgResp.data, 'binary'));
-    } catch {}
-    i++;
+    } catch (error) {
+      console.log(`Fallback image fetch failed`);
+      break;
+    }
   }
 
   return images.slice(0, IMAGE_TOTAL);
 }
 
+/**
+ * API handler for video generation
+ */
 async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // Track temporary files for cleanup
   const tempFiles: string[] = [];
+
   try {
     const { audioBuffer, celebrity, script } = req.body;
+    
+    // Validate required inputs
     if (!audioBuffer || !celebrity || !script) {
       return res.status(400).json({ error: 'Invalid input' });
     }
@@ -127,7 +435,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let audioData: Buffer;
     if (typeof audioBuffer === 'string' && audioBuffer.startsWith('data:')) {
       const base64Data = audioBuffer.split('base64,')[1];
-      if (!base64Data) return res.status(400).json({ error: 'Invalid Base64 audioBuffer format' });
+      if (!base64Data) {
+        return res.status(400).json({ error: 'Invalid Base64 audioBuffer format' });
+      }
       audioData = Buffer.from(base64Data, 'base64');
     } else if (Array.isArray(audioBuffer)) {
       try {
@@ -139,74 +449,80 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Invalid audio format: must be Base64 or ArrayBuffer' });
     }
 
+    // Sanitize celebrity name for filenames
     const sanitizedName = celebrity.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const tempDir = path.join(process.cwd(), 'tmp');
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
     const timestamp = Date.now();
 
-    // Download enough images for all reels
+    // Download all required images
     const allImages = await downloadImagesWithFallbacks(celebrity);
-
     const reels: any[] = [];
-    for (let reelIdx = 0; reelIdx < REEL_COUNT; reelIdx++) {
-      // Pick a different slice of images for each reel
-      const images = allImages.slice(reelIdx * IMAGE_COUNT, (reelIdx + 1) * IMAGE_COUNT);
-      while (images.length < IMAGE_COUNT) images.push(images[images.length - 1]);
 
-      // Save images
+    // Generate each reel
+    for (let reelIdx = 0; reelIdx < REEL_COUNT; reelIdx++) {
+      // Get images for this specific reel
+      const images = allImages.slice(reelIdx * IMAGE_COUNT, (reelIdx + 1) * IMAGE_COUNT);
+      
+      // Duplicate last image if we don't have enough
+      while (images.length < IMAGE_COUNT) {
+        images.push(images[images.length - 1]);
+      }
+
+      // Save images to temporary files
       const imagePaths: string[] = [];
       for (let i = 0; i < images.length; i++) {
-        const imgPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-img${i}-${timestamp}.jpg`);
-        await writeFile(imgPath, images[i]);
+        const imgPath = getTempPath(`${sanitizedName}-reel${reelIdx}-img${i}-${timestamp}.jpg`);
+        writeFileSync(imgPath, images[i]);
         imagePaths.push(imgPath);
         tempFiles.push(imgPath);
       }
 
-      // Save audio file
-      const audioPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-audio-${timestamp}.mp3`);
-      await writeFile(audioPath, audioData);
+      // Save audio to temporary file
+      const audioPath = getTempPath(`${sanitizedName}-reel${reelIdx}-audio-${timestamp}.mp3`);
+      writeFileSync(audioPath, audioData);
       tempFiles.push(audioPath);
 
-      // Prepare ffmpeg input file list for slideshow
-      const ffmpegListPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-ffmpeg-list-${timestamp}.txt`);
-      const ffmpegListContent = imagePaths.map(img => `file '${img.replace(/\\/g, '/')}'\nduration ${IMAGE_DURATION}`).join('\n');
-      await writeFile(ffmpegListPath, ffmpegListContent + `\nfile '${imagePaths[imagePaths.length - 1].replace(/\\/g, '/')}'\n`);
+      // Create FFmpeg input file list
+      const ffmpegListPath = getTempPath(`${sanitizedName}-reel${reelIdx}-ffmpeg-list-${timestamp}.txt`);
+      const ffmpegListContent = imagePaths
+        .map(img => `file '${img}'\nduration ${IMAGE_DURATION}`)
+        .join('\n') + `\nfile '${imagePaths[imagePaths.length - 1]}'\n`;
+      
+      writeFileSync(ffmpegListPath, ffmpegListContent);
       tempFiles.push(ffmpegListPath);
 
-      // Output video path
-      const videoPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-video-${timestamp}.mp4`);
+      // Generate slideshow video
+      const videoPath = getTempPath(`${sanitizedName}-reel${reelIdx}-video-${timestamp}.mp4`);
       tempFiles.push(videoPath);
 
-      // Generate slideshow video from images
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         ffmpeg()
           .input(ffmpegListPath)
           .inputOptions(['-f concat', '-safe 0'])
           .outputOptions([
-            '-vf scale=720:1280,format=yuv420p',
-            '-pix_fmt yuv420p',
-            '-r 30'
+            '-vf scale=720:1280,format=yuv420p', // Standard vertical video format
+            '-pix_fmt yuv420p',                  // Compatible pixel format
+            '-r 30',                             // 30 FPS
+            '-y'                                 // Overwrite output file
           ])
-          .outputOptions('-y')
           .output(videoPath)
           .on('end', resolve)
           .on('error', reject)
           .run();
       });
 
-      // Merge audio with slideshow video
-      const finalVideoPath = path.join(tempDir, `${sanitizedName}-reel${reelIdx}-final-${timestamp}.mp4`);
+      // Merge audio with video
+      const finalVideoPath = getTempPath(`${sanitizedName}-reel${reelIdx}-final-${timestamp}.mp4`);
       tempFiles.push(finalVideoPath);
 
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         ffmpeg()
           .input(videoPath)
           .input(audioPath)
           .outputOptions([
-            '-c:v copy',
-            '-c:a aac',
-            '-shortest',
-            '-movflags faststart'
+            '-c:v copy',         // Copy video stream without re-encoding
+            '-c:a aac',          // Encode audio to AAC
+            '-shortest',         // End when shortest stream ends
+            '-movflags faststart' // Enable streaming
           ])
           .output(finalVideoPath)
           .on('end', resolve)
@@ -214,8 +530,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           .run();
       });
 
-      // Upload to S3
-      const videoData = await readFile(finalVideoPath);
+      // Upload final video to S3
+      const videoData = readFileSync(finalVideoPath);
       const videoKey = `reels/${sanitizedName}-reel${reelIdx}-${timestamp}.mp4`;
 
       await s3.send(
@@ -227,6 +543,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         })
       );
 
+      // Add reel metadata to response
       reels.push({
         id: `${sanitizedName}-reel${reelIdx}-${timestamp}`,
         videoUrl: `${bucketEndpoint}/${videoKey}`,
@@ -237,25 +554,28 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
+    // Return success with generated reels
     return res.status(200).json({ success: true, reels });
+
   } catch (error) {
+    // Handle errors and log details
     console.error('Video generation error:', error);
     return res.status(500).json({
       error: 'Video generation failed',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   } finally {
-    // Cleanup temporary files
-    try {
-      await Promise.all(
-        tempFiles
-          .filter((filePath) => filePath && fs.existsSync(filePath))
-          .map((filePath) => unlink(filePath).catch((e) => console.error(`Error deleting ${filePath}:`, e)))
-      );
-    } catch (cleanupError) {
-      console.error('Error during cleanup:', cleanupError);
-    }
+    // Clean up all temporary files
+    tempFiles.forEach(filePath => {
+      try {
+        if (filePath && existsSync(filePath)) {
+          unlinkSync(filePath);
+        }
+      } catch (cleanupError) {
+        console.error(`Error deleting ${filePath}:`, cleanupError);
+      }
+    });
   }
 }
 
-export default withErrorHandler(handler);
+export default handler;

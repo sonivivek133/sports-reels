@@ -5,8 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "postinstall": "apt-get update && apt-get install -y ffmpeg"
+    "start": "next start"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",
