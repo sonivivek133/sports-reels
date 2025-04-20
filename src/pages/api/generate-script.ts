@@ -627,16 +627,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const data = await response.json();
     let script = Array.isArray(data) && data[0]?.generated_text
       ? data[0].generated_text.replace(prompt, '').trim()
-      : `In the world of sports, few names inspire greatness like ${celebrity}. Rising from humble beginnings, ${celebrity} captured the hearts of fans with unforgettable performances and relentless determination. From record-breaking achievements to iconic championship moments`;
+      : `In the world of sports, few names inspire greatness like ${celebrity}. `;
 
     if (!script || script.length < 30) {
-      script = `In the world of sports, few names inspire greatness like ${celebrity}. Rising from humble beginnings, ${celebrity} captured the hearts of fans with unforgettable performances and relentless determination. From record-breaking achievements to iconic championship moments`;
+      script = `In the world of sports, few names inspire greatness like ${celebrity}. `;
     }
 
     return res.status(200).json({ script });
   } catch (error) {
     return res.status(200).json({
-      script: `In the world of sports, few names inspire greatness like ${celebrity}. Rising from humble beginnings, ${celebrity} captured the hearts of fans with unforgettable performances and relentless determination. From record-breaking achievements to iconic championship moments `,
+      script: `In the world of sports, few names inspire greatness like ${celebrity}.  `,
     });
   }
 }
