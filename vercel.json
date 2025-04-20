@@ -1,8 +1,0 @@
-{
-    "functions": {
-      "api/generate-video.js": {
-        "memory": 3008,   
-        "maxDuration": 30 
-      }
-    }
-  }
