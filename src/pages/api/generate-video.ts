@@ -266,50 +266,80 @@
 
 
 
+/**
+ * Video Generation API Endpoint
+ * 
+ * This endpoint handles:
+ * 1. Downloading images from multiple sources (NBA, Wikimedia, Pexels)
+ * 2. Combining images with audio using FFmpeg
+ * 3. Uploading final videos to AWS S3
+ * 
+ * Designed for serverless deployment on Vercel with:
+ * - Proper FFmpeg configuration
+ * - Temporary file handling in /tmp
+ * - Comprehensive error handling
+ */
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import { join } from 'path';
 import { mkdirSync, existsSync, unlinkSync, writeFileSync, readFileSync } from 'fs';
 import axios from 'axios';
 
-// Initialize S3 client with AWS credentials from environment variables
+// ======================
+// Initial Configuration
+// ======================
+
+// Set FFmpeg path explicitly for serverless environments
+ffmpeg.setFfmpegPath(ffmpegPath.path);
+
+// Configure AWS S3 client with environment variables
 const s3 = new S3Client({
-  region: process.env.AWS_REGION,
+  region: process.env.AWS_REGION!,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
 });
 
-// Construct S3 bucket endpoint URL
 const bucketEndpoint = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com`;
 
-// Mapping of NBA players to their IDs for image fetching
+// NBA player ID mapping for official images
 const NBA_PLAYER_IDS: Record<string, number> = {
   'LeBron James': 2544,
   'Stephen Curry': 201939,
   'Kevin Durant': 201142,
 };
 
-// Configure API route to handle large payloads (up to 25MB)
+// API configuration for large file support
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '25mb',
+      sizeLimit: '25mb', // Supports audio files up to 25MB
     },
   },
 };
 
-// Video generation constants
-const IMAGE_COUNT = 2; // Number of images per reel
-const REEL_COUNT = 1;  // Number of reels to generate
-const IMAGE_DURATION = 1; // Duration (in seconds) each image is shown
+// ======================
+// Constants
+// ======================
+
+const IMAGE_COUNT = 2;       // Images per reel
+const REEL_COUNT = 1;        // Number of reels to generate
+const IMAGE_DURATION = 1;    // Seconds per image
+const VIDEO_WIDTH = 720;     // Output width
+const VIDEO_HEIGHT = 1280;   // Output height (vertical format)
+const FPS = 30;              // Frames per second
+
+// ======================
+// Helper Functions
+// ======================
 
 /**
- * Helper function to get paths in Vercel's writable /tmp directory
- * @param filename - Name of the temporary file
+ * Gets a writable temporary file path in Vercel's /tmp directory
+ * @param filename - Name for the temporary file
  * @returns Full path to temporary file
  */
 const getTempPath = (filename: string): string => {
@@ -321,89 +351,85 @@ const getTempPath = (filename: string): string => {
 };
 
 /**
- * Fetches images of a celebrity from multiple sources with fallbacks
+ * Downloads images from multiple sources with fallbacks
  * @param celebrity - Name of the celebrity to fetch images for
- * @returns Array of image buffers
+ * @returns Promise resolving to array of image buffers
  */
 async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]> {
   const images: Buffer[] = [];
   const IMAGE_TOTAL = IMAGE_COUNT * REEL_COUNT;
 
-  // Try NBA CDN first if celebrity is a known player
+  // Try NBA CDN first for basketball players
   if (NBA_PLAYER_IDS[celebrity]) {
     try {
       const nbaUrl = `https://cdn.nba.com/headshots/nba/latest/1040x760/${NBA_PLAYER_IDS[celebrity]}.png`;
-      const nbaImg = await axios.get(nbaUrl, { responseType: 'arraybuffer' });
-      images.push(Buffer.from(nbaImg.data, 'binary'));
+      const response = await axios.get(nbaUrl, { responseType: 'arraybuffer' });
+      images.push(Buffer.from(response.data, 'binary'));
     } catch (error) {
-      console.log(`NBA image fetch failed for ${celebrity}`);
+      console.warn(`NBA image fetch failed for ${celebrity}`);
     }
   }
 
   // Try Wikimedia Commons API
   try {
     const wikiApi = `https://en.wikipedia.org/w/api.php?action=query&generator=images&titles=${encodeURIComponent(celebrity)}&gimlimit=10&prop=imageinfo&iiprop=url&format=json`;
-    const wikiResp = await axios.get(wikiApi);
-    const pages = wikiResp.data?.query?.pages || {};
+    const response = await axios.get(wikiApi);
+    const pages = response.data?.query?.pages || {};
     
     for (const page of Object.values(pages)) {
       const url = (page as { imageinfo?: { url?: string }[] }).imageinfo?.[0]?.url;
       if (url && /\.(jpg|jpeg|png)$/i.test(url)) {
         try {
-          const imgResp = await axios.get(url, { responseType: 'arraybuffer' });
-          images.push(Buffer.from(imgResp.data, 'binary'));
+          const imgResponse = await axios.get(url, { responseType: 'arraybuffer' });
+          images.push(Buffer.from(imgResponse.data, 'binary'));
           if (images.length >= IMAGE_TOTAL) break;
         } catch (error) {
-          console.log(`Wikimedia image fetch failed for ${url}`);
+          console.warn(`Failed to download Wikimedia image`);
         }
       }
     }
   } catch (error) {
-    console.log(`Wikimedia API failed for ${celebrity}`);
+    console.warn(`Wikimedia API failed for ${celebrity}`);
   }
 
   // Try Pexels API if key is available
-  if (process.env.PEXELS_API_KEY) {
+  if (process.env.PEXELS_API_KEY && images.length < IMAGE_TOTAL) {
     try {
       const pexelsUrl = `https://api.pexels.com/v1/search?query=${encodeURIComponent(celebrity)}&per_page=${IMAGE_TOTAL}`;
-      const pexelsResp = await axios.get(pexelsUrl, {
+      const response = await axios.get(pexelsUrl, {
         headers: { Authorization: process.env.PEXELS_API_KEY },
         responseType: 'json',
       });
       
-      if (pexelsResp.data.photos?.length > 0) {
-        for (const photo of pexelsResp.data.photos) {
-          const imageUrl = photo.src.large2x;
+      if (response.data.photos?.length > 0) {
+        for (const photo of response.data.photos) {
           try {
-            const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-            images.push(Buffer.from(imgResp.data, 'binary'));
+            const imgResponse = await axios.get(photo.src.large2x, { responseType: 'arraybuffer' });
+            images.push(Buffer.from(imgResponse.data, 'binary'));
             if (images.length >= IMAGE_TOTAL) break;
           } catch (error) {
-            console.log(`Pexels image fetch failed for ${imageUrl}`);
+            console.warn(`Failed to download Pexels image`);
           }
         }
       }
     } catch (error) {
-      console.log(`Pexels API failed for ${celebrity}`);
+      console.warn(`Pexels API failed`);
     }
   }
 
-  // Fallback to Unsplash images if we don't have enough
+  // Fallback to Unsplash images if needed
   const fallbackUrls = [
     'https://images.unsplash.com/photo-1546519638-68e109498ffc?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=1400&q=80',
-    'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1464983953574-0892a716854b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1505843273132-bc5a993635c4?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+    'https://images.unsplash.com/photo-1517649763962-0c623066013b?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
   ];
 
-  // Fill remaining slots with fallback images
   while (images.length < IMAGE_TOTAL) {
     try {
       const url = fallbackUrls[images.length % fallbackUrls.length];
-      const imgResp = await axios.get(url, { responseType: 'arraybuffer' });
-      images.push(Buffer.from(imgResp.data, 'binary'));
+      const response = await axios.get(url, { responseType: 'arraybuffer' });
+      images.push(Buffer.from(response.data, 'binary'));
     } catch (error) {
-      console.log(`Fallback image fetch failed`);
+      console.warn(`Failed to download fallback image`);
       break;
     }
   }
@@ -411,16 +437,16 @@ async function downloadImagesWithFallbacks(celebrity: string): Promise<Buffer[]>
   return images.slice(0, IMAGE_TOTAL);
 }
 
-/**
- * API handler for video generation
- */
+// ======================
+// Main API Handler
+// ======================
+
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Track temporary files for cleanup
   const tempFiles: string[] = [];
 
   try {
@@ -428,7 +454,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     
     // Validate required inputs
     if (!audioBuffer || !celebrity || !script) {
-      return res.status(400).json({ error: 'Invalid input' });
+      return res.status(400).json({ error: 'Missing required fields' });
     }
 
     // Convert audio data to Buffer
@@ -436,17 +462,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (typeof audioBuffer === 'string' && audioBuffer.startsWith('data:')) {
       const base64Data = audioBuffer.split('base64,')[1];
       if (!base64Data) {
-        return res.status(400).json({ error: 'Invalid Base64 audioBuffer format' });
+        return res.status(400).json({ error: 'Invalid audio format' });
       }
       audioData = Buffer.from(base64Data, 'base64');
     } else if (Array.isArray(audioBuffer)) {
-      try {
-        audioData = Buffer.from(new Uint8Array(audioBuffer));
-      } catch (error) {
-        return res.status(400).json({ error: 'Invalid ArrayBuffer format' });
-      }
+      audioData = Buffer.from(new Uint8Array(audioBuffer));
     } else {
-      return res.status(400).json({ error: 'Invalid audio format: must be Base64 or ArrayBuffer' });
+      return res.status(400).json({ error: 'Unsupported audio format' });
     }
 
     // Sanitize celebrity name for filenames
@@ -455,17 +477,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Download all required images
     const allImages = await downloadImagesWithFallbacks(celebrity);
-    const reels: any[] = [];
+    const reels = [];
 
     // Generate each reel
     for (let reelIdx = 0; reelIdx < REEL_COUNT; reelIdx++) {
-      // Get images for this specific reel
+      // Get images for this reel
       const images = allImages.slice(reelIdx * IMAGE_COUNT, (reelIdx + 1) * IMAGE_COUNT);
-      
-      // Duplicate last image if we don't have enough
-      while (images.length < IMAGE_COUNT) {
-        images.push(images[images.length - 1]);
-      }
+      while (images.length < IMAGE_COUNT) images.push(images[images.length - 1]);
 
       // Save images to temporary files
       const imagePaths: string[] = [];
@@ -499,14 +517,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           .input(ffmpegListPath)
           .inputOptions(['-f concat', '-safe 0'])
           .outputOptions([
-            '-vf scale=720:1280,format=yuv420p', // Standard vertical video format
-            '-pix_fmt yuv420p',                  // Compatible pixel format
-            '-r 30',                             // 30 FPS
-            '-y'                                 // Overwrite output file
+            `-vf scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT},format=yuv420p`,
+            '-pix_fmt yuv420p',
+            `-r ${FPS}`,
+            '-y'
           ])
-          .output(videoPath)
-          .on('end', resolve)
           .on('error', reject)
+          .on('end', resolve)
+          .output(videoPath)
           .run();
       });
 
@@ -519,18 +537,18 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           .input(videoPath)
           .input(audioPath)
           .outputOptions([
-            '-c:v copy',         // Copy video stream without re-encoding
-            '-c:a aac',          // Encode audio to AAC
-            '-shortest',         // End when shortest stream ends
-            '-movflags faststart' // Enable streaming
+            '-c:v copy',
+            '-c:a aac',
+            '-shortest',
+            '-movflags faststart'
           ])
-          .output(finalVideoPath)
-          .on('end', resolve)
           .on('error', reject)
+          .on('end', resolve)
+          .output(finalVideoPath)
           .run();
       });
 
-      // Upload final video to S3
+      // Upload to S3
       const videoData = readFileSync(finalVideoPath);
       const videoKey = `reels/${sanitizedName}-reel${reelIdx}-${timestamp}.mp4`;
 
@@ -543,36 +561,31 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         })
       );
 
-      // Add reel metadata to response
       reels.push({
         id: `${sanitizedName}-reel${reelIdx}-${timestamp}`,
         videoUrl: `${bucketEndpoint}/${videoKey}`,
         celebrity,
         script,
-        title: `${celebrity}'s Career Highlights`,
-        description: `${script.substring(0, 97)}${script.length > 97 ? '...' : ''}`,
       });
     }
 
-    // Return success with generated reels
     return res.status(200).json({ success: true, reels });
 
   } catch (error) {
-    // Handle errors and log details
-    console.error('Video generation error:', error);
+    console.error('Video generation failed:', error);
     return res.status(500).json({
       error: 'Video generation failed',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   } finally {
-    // Clean up all temporary files
+    // Clean up temporary files
     tempFiles.forEach(filePath => {
       try {
-        if (filePath && existsSync(filePath)) {
+        if (existsSync(filePath)) {
           unlinkSync(filePath);
         }
       } catch (cleanupError) {
-        console.error(`Error deleting ${filePath}:`, cleanupError);
+        console.error('Cleanup error:', cleanupError);
       }
     });
   }
