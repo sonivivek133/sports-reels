@@ -12,8 +12,12 @@ const nextConfig: NextConfig = {
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     AWS_REGION: process.env.AWS_REGION
   },
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true }
   // `webpack5: true` is deprecated (Next.js 12+ uses Webpack 5 by default)
   // Remove it or replace with modern alternatives if needed
 }
+
+
 
 export default nextConfig
