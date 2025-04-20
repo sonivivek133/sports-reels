@@ -1,8 +1,8 @@
 {
     "functions": {
       "api/generate-video.js": {
-        "memory": 3008,    // Allocates 3GB memory (max for Hobby/Pro)
-        "maxDuration": 30  // Extends timeout to 30 seconds
+        "memory": 3008,   
+        "maxDuration": 30 
       }
     }
   }
